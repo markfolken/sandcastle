@@ -10,6 +10,7 @@
     "declarationMap": false,
     "paths": {
       "@ai-hero/sandcastle": ["../src/index.ts"],
+      "@ai-hero/sandcastle/checks": ["../src/checks.ts"],
       "@ai-hero/sandcastle/sandboxes/*": ["../src/sandboxes/*.ts"]
     }
   },

@@ -146,6 +146,18 @@ The validator, such as a Zod schema, that you pass to `Output.object()` to parse
 
 First explained in [Structured output](./structured-output.md).
 
+## Postflight check
+
+A check a factory runs after [agent](#agent) work, which refuses to report a success it has not confirmed. See [Checks](./checks.md).
+
+First explained in [Checks](./checks.md).
+
+## Preflight check
+
+A check a factory runs before starting [agent](#agent) work, which refuses to start on a broken foundation. See [Checks](./checks.md).
+
+First explained in [Checks](./checks.md).
+
 ## Prompt
 
 The instructions the [agent](#agent) gets at the start of each [iteration](#iteration): an [inline prompt](#inline-prompt) or a [prompt template](#prompt-template). See [Prompts](./prompts.md).
@@ -257,6 +269,12 @@ The step during [init](#init) that replaces each [template argument](#template-a
 The display mode where Sandcastle shows progress in the terminal, with spinners and status messages. See [Run logs](./run-logs.md).
 
 First explained in [Run logs](./run-logs.md).
+
+## Ticket lint
+
+A lint of an issue before a run is spent on it. See [Checks](./checks.md#ticket-lint).
+
+First explained in [Checks](./checks.md).
 
 ## Worktree
 

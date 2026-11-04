@@ -9,6 +9,7 @@ const pkg = z
 export default defineConfig({
   entry: {
     index: "src/index.ts",
+    checks: "src/checks.ts",
     main: "src/main.ts",
     "sandboxes/docker": "src/sandboxes/docker.ts",
     "sandboxes/podman": "src/sandboxes/podman.ts",

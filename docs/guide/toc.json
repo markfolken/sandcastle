@@ -22,6 +22,7 @@
         "init"
       ]
     },
+    { "title": "Checks", "pages": ["checks"] },
     { "title": "Reference", "pages": ["run", "cli", "glossary"] }
   ]
 }
