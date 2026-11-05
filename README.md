@@ -30,6 +30,7 @@ The docs live in [`docs/guide`](./docs/guide), one page per major term, with eve
 - Hooks: [Hooks](./docs/guide/hooks.md)
 - Init: [Init](./docs/guide/init.md)
 - Display: [Run logs](./docs/guide/run-logs.md)
+- Checks: [Checks](./docs/guide/checks.md)
 - Reference: [`run()` and `createSandbox()`](./docs/guide/run.md), [CLI commands](./docs/guide/cli.md), [Glossary](./docs/guide/glossary.md)
 
 ## Development

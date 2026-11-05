@@ -202,6 +202,20 @@ _Avoid_: "continue", "follow-up"
 Branching an **agent session** into a new record with a new session ID, leaving the parent record byte-for-byte unchanged. Uses the **agent**'s native fork flag (`claude --fork-session`, `codex exec fork`). Exposed as `RunResult.fork()`. Isolates the session only -- not the **source branch** or **sandbox**. An **agent provider** whose CLI resumes but has no fork flag declares `canFork: false`, and `.fork()` throws `ForkNotSupportedError` for it (ADR 0021).
 _Avoid_: "branch" (overloaded with git branches), "copy session"
 
+### Checks
+
+**Preflight check**:
+A check a factory runs before starting **agent** work, which refuses to start on a broken foundation: a stale base, a credential in git config, a stale **worktree** registration.
+_Avoid_: "bwrap preflight" (that is `bwrap()`'s own construction check), "pre-run hook"
+
+**Postflight check**:
+A check a factory runs after **agent** work, which refuses to report a success it has not confirmed: a non-zero exit, no PR, a malformed PR body, failing CI.
+_Avoid_: "post-run hook", "verification" (that is the `verify` skill)
+
+**Ticket lint**:
+A lint of an issue before a run is spent on it: paths that don't exist, install names that don't resolve, criteria nobody can verify, invitations to widen the scope.
+_Avoid_: "issue validation"
+
 ### Display
 
 **Log-to-file mode**:
