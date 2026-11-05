@@ -30,42 +30,61 @@ const check = (
 const git = (ctx: CheckContext, args: string[], cwd = ctx.repoPath) =>
   ctx.run("git", args, { cwd });
 
-/** Compares two different SHAs: can the local one fast-forward to the remote? */
+/** The remedy when local has commits origin lacks: a fast-forward can't work. */
+const keepLocalCommitsFix = (base: string): string =>
+  `Do not fast-forward. Keep the local commits on a branch, then move ${base} to origin: git branch ${base}-local ${base} && git checkout ${base} && git reset --hard origin/${base}`;
+
+/** Why two different SHAs block, from local history alone: the fetch has run. */
 const compareBase = (
   ctx: CheckContext,
   localSha: string,
   remoteSha: string,
 ): CheckResult => {
   const base = ctx.baseBranch;
-  const ancestor = git(ctx, [
-    "merge-base",
-    "--is-ancestor",
-    localSha,
-    remoteSha,
-  ]);
-  if (ancestor.status === 0) {
+  const here = `${base} (${localSha})`;
+  const there = `origin/${base} (${remoteSha})`;
+  const isAncestor = (older: string, newer: string) =>
+    git(ctx, ["merge-base", "--is-ancestor", older, newer]);
+  const unreadable = (reason: string): CheckResult => ({
+    ok: false,
+    detail: `could not compare ${base} with origin/${base}: ${reason}`,
+    fix: `Run: git fetch origin ${base}`,
+  });
+  const behind = isAncestor(localSha, remoteSha);
+  if (behind.status === 0) {
     return {
-      ok: true,
-      detail: `${base} (${localSha}) is behind origin/${base} (${remoteSha}) and can be fast-forwarded`,
+      ok: false,
+      detail: `${here} is behind ${there}: work started here would be blind to what merged since`,
+      fix: `Fast-forward it: git fetch origin && git checkout ${base} && git merge --ff-only origin/${base}`,
     };
   }
-  return ancestor.status === 1
+  if (behind.status !== 1) {
+    return unreadable(failureReason(behind));
+  }
+  const ahead = isAncestor(remoteSha, localSha);
+  if (ahead.status === 0) {
+    return {
+      ok: false,
+      detail: `${here} is ahead of ${there}: it has commits origin/${base} lacks, which would ride along on the branch`,
+      fix: keepLocalCommitsFix(base),
+    };
+  }
+  return ahead.status === 1
     ? {
         ok: false,
-        detail: `${base} (${localSha}) has diverged from origin/${base} (${remoteSha}): it has commits origin/${base} lacks`,
-        fix: `Move those commits to a branch, then run: git checkout ${base} && git reset --hard origin/${base}`,
+        detail: `${here} has diverged from ${there}: each has commits the other lacks`,
+        fix: keepLocalCommitsFix(base),
       }
-    : {
-        ok: false,
-        detail: `could not compare ${base} with origin/${base}: ${failureReason(ancestor)}`,
-        fix: `Run: git fetch origin ${base}`,
-      };
+    : unreadable(failureReason(ahead));
 };
 
 /**
- * The local base branch equals `origin/<base>`, or can be fast-forwarded to
- * it. Fetches first: a stale remote-tracking ref would otherwise agree with a
- * stale local branch. A fetch that fails refuses, since nothing is confirmed.
+ * The local base branch is the same commit as `origin/<base>`. Anything else
+ * blocks, a base merely behind most of all: a branch cut from a stale base
+ * re-added a file a merged PR had deleted, and passed review, because the
+ * branch was consistent and the regression only existed relative to the new
+ * base. Fetches first, since a stale remote-tracking ref would otherwise agree
+ * with a stale local branch. A fetch that fails refuses: nothing is confirmed.
  */
 export const baseCurrent: Check = check("baseCurrent", "block", (ctx) => {
   const base = ctx.baseBranch;

@@ -49,14 +49,14 @@ Checks don't change `run()`, and `run()` doesn't call them: your factory decides
 
 `runPreflight(ctx, options?)` runs all of these, and every check runs whatever the others find.
 
-| Check                 | Severity | What it prevents                                                                                                                                                                                                                                                                                 |
-| --------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `baseCurrent`         | block    | Starting from the wrong commit. Fetches, then requires the local base to equal `origin/<base>` or be able to fast-forward to it. A base that is only behind passes, and the detail says so: your factory fast-forwards it. A base with commits `origin/<base>` lacks is refused, with both SHAs. |
-| `noCredentials`       | block    | An [agent](./glossary.md#agent) reading a token out of `git config` and pushing with it. Scans remote URLs and every config key and value visible from the repo and the branch's [worktree](./glossary.md#worktree).                                                                             |
-| `worktreeClean`       | block    | A `WorktreeError` on the next run, from a stale worktree registration for the branch. The fix names `git worktree prune` and `git worktree remove`.                                                                                                                                              |
-| `testCommandRunnable` | block    | A run whose tests can't start. `FACTORY_TEST_CMD`, or the key you configure, must be set and its interpreter must exist.                                                                                                                                                                         |
-| `agentTokenValid`     | warn     | Starting with no token or an expired one. Warns, never blocks, since the caller may refresh. Tries the env vars you configure, then the file `AGENT_TOKEN_FILE` names, and reads a JWT `exp` or a JSON `expiresAt`, `expires_at`, `expiry` or `exp`.                                             |
-| `branchHasOpenPR`     | warn     | Surprise at an existing PR. It names the PR. Publishing is idempotent, so this is information.                                                                                                                                                                                                   |
+| Check                 | Severity | What it prevents                                                                                                                                                                                                                                                                                                             |
+| --------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseCurrent`         | block    | Starting from the wrong commit. Fetches, then requires the local base to be the same commit as `origin/<base>`. Behind, ahead and diverged are each refused, with both SHAs and their own fix: a base merely behind is the costly one, since a branch cut from it can re-add what a merged PR deleted and still pass review. |
+| `noCredentials`       | block    | An [agent](./glossary.md#agent) reading a token out of `git config` and pushing with it. Scans remote URLs and every config key and value visible from the repo and the branch's [worktree](./glossary.md#worktree).                                                                                                         |
+| `worktreeClean`       | block    | A `WorktreeError` on the next run, from a stale worktree registration for the branch. The fix names `git worktree prune` and `git worktree remove`.                                                                                                                                                                          |
+| `testCommandRunnable` | block    | A run whose tests can't start. `FACTORY_TEST_CMD`, or the key you configure, must be set and its interpreter must exist.                                                                                                                                                                                                     |
+| `agentTokenValid`     | warn     | Starting with no token or an expired one. Warns, never blocks, since the caller may refresh. Tries the env vars you configure, then the file `AGENT_TOKEN_FILE` names, and reads a JWT `exp` or a JSON `expiresAt`, `expires_at`, `expiry` or `exp`.                                                                         |
+| `branchHasOpenPR`     | warn     | Surprise at an existing PR. It names the PR. Publishing is idempotent, so this is information.                                                                                                                                                                                                                               |
 
 `noCredentials` recognises `@` in an `http(s)` URL's authority, GitHub tokens (`ghp_`, `gho_`, `ghs_`, `ghu_`, `ghr_`, `github_pat_`), `x-access-token` and `Authorization:`. It reports the key that holds a credential, never the credential. Reports also redact these patterns from every check's text, since a report often ends up in a CI log.
 
@@ -135,8 +135,8 @@ A real block outranks a crash, since rerunning won't clear it.
 ```text
 preflight: exit 3
 PASS  worktreeClean: no worktree registered for agent/issue-42
-BLOCK baseCurrent: main (a1b2…) has diverged from origin/main (c3d4…): it has commits origin/main lacks
-fix baseCurrent: Move those commits to a branch, then run: git checkout main && git reset --hard origin/main
+BLOCK baseCurrent: main (a1b2…) is behind origin/main (c3d4…): work started here would be blind to what merged since
+fix baseCurrent: Fast-forward it: git fetch origin && git checkout main && git merge --ff-only origin/main
 ```
 
 `renderJson(report)` is the same for machines:

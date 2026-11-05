@@ -23,6 +23,7 @@ const FETCH = "git fetch --quiet origin main";
 const LOCAL = "git rev-parse --verify --quiet refs/heads/main";
 const REMOTE = "git rev-parse --verify --quiet refs/remotes/origin/main";
 const ANCESTOR = `git merge-base --is-ancestor ${SHA_A} ${SHA_B}`;
+const ANCESTOR_REVERSED = `git merge-base --is-ancestor ${SHA_B} ${SHA_A}`;
 const REMOTES = "git remote -v";
 const CONFIG = "git config --list --null";
 const WORKTREES = "git worktree list --porcelain";
@@ -97,7 +98,7 @@ describe("runPreflight", () => {
           ...CLEAN,
           [LOCAL]: `${SHA_A}\n`,
           [REMOTE]: `${SHA_B}\n`,
-          [ANCESTOR]: { status: 1 },
+          [ANCESTOR]: "",
         }),
         CLEAN_ENV,
       ),
@@ -109,28 +110,71 @@ describe("runPreflight", () => {
 });
 
 describe("baseCurrent", () => {
-  it("stale base: refuses a diverged base, with both SHAs and a fix", async () => {
+  it("base current: passes only when local and origin are the same commit", async () => {
+    const result = await baseCurrent.run(context(fakeRunner(CLEAN)));
+    expect(result.ok).toBe(true);
+    expect(result.detail).toContain(SHA_A);
+  });
+
+  it("stale base re-added a deleted file: a base merely behind origin blocks, naming both SHAs and the fast-forward", async () => {
+    const result = await baseCurrent.run(
+      context(fakeRunner({ ...CLEAN, [REMOTE]: `${SHA_B}\n`, [ANCESTOR]: "" })),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.detail).toContain("behind");
+    expect(result.detail).toContain(SHA_A);
+    expect(result.detail).toContain(SHA_B);
+    expect(result.fix).toContain("git fetch origin");
+    expect(result.fix).toContain("git merge --ff-only origin/main");
+  });
+
+  it("diverged base: blocks without suggesting a fast-forward that can't work", async () => {
     const result = await baseCurrent.run(
       context(
         fakeRunner({
           ...CLEAN,
           [REMOTE]: `${SHA_B}\n`,
           [ANCESTOR]: { status: 1 },
+          [ANCESTOR_REVERSED]: { status: 1 },
         }),
       ),
     );
     expect(result.ok).toBe(false);
+    expect(result.detail).toContain("diverged");
     expect(result.detail).toContain(SHA_A);
     expect(result.detail).toContain(SHA_B);
-    expect(result.fix).toContain("origin/main");
+    expect(result.fix).not.toContain("--ff-only");
+    expect(result.fix).toContain("Do not fast-forward");
   });
 
-  it("passes a base that can be fast-forwarded, and says it is behind", async () => {
+  it("base ahead of origin: blocks, since unmerged local commits would leak into the branch", async () => {
     const result = await baseCurrent.run(
-      context(fakeRunner({ ...CLEAN, [REMOTE]: `${SHA_B}\n`, [ANCESTOR]: "" })),
+      context(
+        fakeRunner({
+          ...CLEAN,
+          [REMOTE]: `${SHA_B}\n`,
+          [ANCESTOR]: { status: 1 },
+          [ANCESTOR_REVERSED]: "",
+        }),
+      ),
     );
-    expect(result.ok).toBe(true);
-    expect(result.detail).toContain("behind");
+    expect(result.ok).toBe(false);
+    expect(result.detail).toContain("ahead");
+    expect(result.detail).not.toContain("diverged");
+    expect(result.fix).not.toContain("--ff-only");
+  });
+
+  it("tells behind from diverged without a second fetch", async () => {
+    const run = fakeRunner({
+      ...CLEAN,
+      [REMOTE]: `${SHA_B}\n`,
+      [ANCESTOR]: { status: 1 },
+      [ANCESTOR_REVERSED]: { status: 1 },
+    });
+    await baseCurrent.run(context(run));
+    expect(run.calls.filter((call) => call.includes("fetch"))).toStrictEqual([
+      FETCH,
+    ]);
   });
 
   it("stale tracking ref: fetches before comparing", async () => {
@@ -150,6 +194,7 @@ describe("baseCurrent", () => {
     );
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("could not resolve host");
+    expect(result.fix).toContain("Nothing can be confirmed about the base");
   });
 
   it("a comparison git can't make refuses rather than reading as diverged or current", async () => {
@@ -164,6 +209,21 @@ describe("baseCurrent", () => {
     );
     expect(result.ok).toBe(false);
     expect(result.detail).toContain("bad object");
+  });
+
+  it("a second comparison git can't make refuses too", async () => {
+    const result = await baseCurrent.run(
+      context(
+        fakeRunner({
+          ...CLEAN,
+          [REMOTE]: `${SHA_B}\n`,
+          [ANCESTOR]: { status: 1 },
+          [ANCESTOR_REVERSED]: { status: 128, stderr: "bad object" },
+        }),
+      ),
+    );
+    expect(result.ok).toBe(false);
+    expect(result.detail).toContain("could not compare");
   });
 });
 
